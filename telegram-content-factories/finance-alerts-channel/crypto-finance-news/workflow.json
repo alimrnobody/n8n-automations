@@ -1,1 +1,284 @@
-
+{
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Gold, Crypto  & Market Live News",
+        "height": 640,
+        "width": 1872,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -800,
+        208
+      ],
+      "typeVersion": 1,
+      "id": "b16b6bf7-8818-4404-ba84-bf9c474bbf9b",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -512,
+        464
+      ],
+      "id": "60c7994a-1334-4e97-a96d-4cf6f72c3bb4",
+      "name": "Get CoinDesk RSS"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputs = $input.all();\n\nlet results = [];\n\nfor (const feed of inputs) {\n  const xml = feed.json.data;\n\n  // ✅ SAFETY GUARD (correct place)\n  if (!xml || typeof xml !== 'string') {\n    continue;\n  }\n\n  // First <item> only\n  const itemMatch = xml.match(/<item>([\\s\\S]*?)<\\/item>/);\n  if (!itemMatch) continue;\n\n  const item = itemMatch[1];\n\n  const title =\n    item.match(/<title><!\\[CDATA\\[(.*?)\\]\\]><\\/title>/)?.[1] ||\n    item.match(/<title>(.*?)<\\/title>/)?.[1] ||\n    'No title';\n\n  let link =\n    item.match(/<link>(.*?)<\\/link>/)?.[1] ||\n    item.match(/<guid>(.*?)<\\/guid>/)?.[1] ||\n    '';\n\n  link = link.trim();\n\n  // ❗ invalid / relative links skip\n  if (!link.startsWith('http')) {\n    continue;\n  }\n\n  const description =\n    item.match(/<description><!\\[CDATA\\[(.*?)\\]\\]><\\/description>/)?.[1] ||\n    item.match(/<description>(.*?)<\\/description>/)?.[1] ||\n    '';\n\n  results.push({\n    title: title.trim(),\n    link,\n    description: description.trim().replace(/<[^>]+>/g, '')\n  });\n}\n\nreturn results.map(r => ({ json: r }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        464
+      ],
+      "id": "c23ece5c-20aa-4722-bb87-01c73e98fcb3",
+      "name": "Parse RSS Feeds"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfunction detectCategory(link, title) {\n  const t = title.toLowerCase();\n\n  // CRYPTO\n  if (link.includes('coindesk.com') || link.includes('cointelegraph.com')) {\n    return 'crypto';\n  }\n\n  // INVESTING.COM → keyword based\n  if (link.includes('investing.com')) {\n    if (t.includes('gold') || t.includes('bullion') || t.includes('precious')) {\n      return 'gold';\n    }\n\n    return 'finance'; // oil, opec, markets, economy, etc.\n  }\n\n  return 'other';\n}\n\nfunction buildMessage(title, category) {\n  if (category === 'crypto') {\n    return `📰 <b>Crypto News</b> ₿\n\n${title}\n\n⏱ Just now\n\n#Crypto #Bitcoin #Blockchain #CryptoNews`;\n  }\n\n  if (category === 'gold') {\n    return `📰 <b>Gold Market Update</b> 🟡\n\n${title}\n\n⏱ Just now\n\n#Gold #PreciousMetals #Commodities`;\n  }\n\n  if (category === 'finance') {\n    return `📰 <b>Market News</b> 📊\n\n${title}\n\n⏱ Just now\n\n#Markets #Finance #Economy #GlobalNews`;\n  }\n\n  return null;\n}\n\nlet output = [];\n\nfor (const item of items) {\n  const { title, link } = item.json;\n\n  const category = detectCategory(link, title);\n  const message = buildMessage(title, category);\n\n  if (!message) continue;\n\n  output.push({\n    json: {\n      category,\n      title,\n      link,\n      message\n    }\n  });\n}\n\nreturn output;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        464
+      ],
+      "id": "fc3326af-82ef-4d4e-b7a7-406a1d26ac51",
+      "name": "Build Telegram Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst staticData = $getWorkflowStaticData('global');\n\n// Create DB if not exists\nif (!staticData.db) {\n  staticData.db = {\n    posted: {},\n    lock: false\n  };\n}\n\n// 🔒 HARD LOCK — agar already post select ho chuki hai\nif (staticData.db.lock === true) {\n  return [];\n}\n\nlet selectedItem = null;\n\nfunction normalize(link) {\n  if (!link) return '';\n  return link.split('?')[0].trim().toLowerCase();\n}\n\nfor (const item of items) {\n  const { title, link, message, category } = item.json;\n  const cleanLink = normalize(link);\n\n  // Skip if already posted\n  if (staticData.db.posted[cleanLink]) {\n    continue;\n  }\n\n  // 🔒 Activate Lock Immediately\n  staticData.db.lock = true;\n\n  // Save as posted\n  staticData.db.posted[cleanLink] = {\n    title,\n    postedAt: new Date().toISOString()\n  };\n\n  selectedItem = {\n    json: {\n      title,\n      link,\n      message,\n      category\n    }\n  };\n\n  break;\n}\n\n// If nothing new → unlock\nif (!selectedItem) {\n  staticData.db.lock = false;\n  return [];\n}\n\nreturn [selectedItem];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        464
+      ],
+      "id": "050ce0b9-b415-4112-a7ee-22aaddd7a099",
+      "name": "Duplicate Check"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        240,
+        464
+      ],
+      "id": "0fb5c026-57df-4714-95d1-462a8aabb18f",
+      "name": "Fetch Article Page",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first();\nconst category = $('Duplicate Check').item.json.category;\n\n// Cloudinary fallback images\nconst fallbackImages = {\n  crypto: 'https://res.cloudinary.com/dsqachne0/image/upload/v1770043151/ChatGPT_Image_Feb_2_2026_07_37_38_PM_gpahwu.png',\n  gold: 'https://res.cloudinary.com/dsqachne0/image/upload/v1770043646/ChatGPT_Image_Feb_2_2026_07_46_53_PM_jk4xcb.png',\n  finance: 'https://res.cloudinary.com/dsqachne0/image/upload/v1770043843/ChatGPT_Image_Feb_2_2026_07_49_56_PM_irsivw.png'\n};\n\nlet html = '';\nlet imageUrl = null;\n\n// If fetch failed → data may not exist\nif (input && input.json && input.json.data) {\n  html = input.json.data;\n}\n\n// Try extracting og:image\nif (html) {\n  let match = html.match(/<meta\\s+property=[\"']og:image[\"']\\s+content=[\"']([^\"']+)[\"']/i);\n\n  if (!match) {\n    match = html.match(/<meta\\s+name=[\"']twitter:image[\"']\\s+content=[\"']([^\"']+)[\"']/i);\n  }\n\n  if (match && match[1].startsWith('http')) {\n    imageUrl = match[1];\n  }\n}\n\n// 🚀 FINAL GUARANTEE\nif (!imageUrl) {\n  imageUrl = fallbackImages[category] || fallbackImages.finance;\n}\n\nreturn [\n  {\n    json: {\n      imageUrl\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        464
+      ],
+      "id": "35723cb4-e08f-4b72-add8-6557d18db0cd",
+      "name": "Extract OG Image"
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "@financealerts0",
+        "file": "={{ $('Extract OG Image').item.json.imageUrl }}",
+        "additionalFields": {
+          "caption": "={{ $('Duplicate Check').item.json.message }}",
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        464
+      ],
+      "id": "c751a4ff-06be-4f35-9ee6-36d134dd29c1",
+      "name": "Photo Post",
+      "webhookId": "357f7e92-16a5-4fcb-8b41-8fc53e3e8bf8",
+      "credentials": {
+        "telegramApi": {
+          "id": "6ZcfdZzVhnr3kEHP",
+          "name": "Telegram Bot (Mr Nobody)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -704,
+        464
+      ],
+      "id": "b6266c49-1a37-4739-b67c-3c1a23fec2e9",
+      "name": "Schedule Trigger1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\n\nif (staticData.db) {\n  staticData.db.lock = false;\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        464
+      ],
+      "id": "93654c73-29f5-4c22-a02a-9ad40c6d3e26",
+      "name": "Unlock"
+    }
+  ],
+  "connections": {
+    "Get CoinDesk RSS": {
+      "main": [
+        [
+          {
+            "node": "Parse RSS Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse RSS Feeds": {
+      "main": [
+        [
+          {
+            "node": "Build Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Check": {
+      "main": [
+        [
+          {
+            "node": "Fetch Article Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Article Page": {
+      "main": [
+        [
+          {
+            "node": "Extract OG Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract OG Image": {
+      "main": [
+        [
+          {
+            "node": "Photo Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Photo Post": {
+      "main": [
+        [
+          {
+            "node": "Unlock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Get CoinDesk RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9cd43dcb55a8601943aaff717ee12820b5d08e8bfaaaf24abd5ade9105ed54c6"
+  }
+}
