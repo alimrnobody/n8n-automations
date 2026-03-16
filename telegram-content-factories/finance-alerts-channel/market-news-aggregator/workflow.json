@@ -1,1 +1,300 @@
-
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2,
+              "triggerAtMinute": 35
+            }
+          ]
+        }
+      },
+      "id": "c9353b9e-2cb5-43f2-8562-3594f5a3174b",
+      "name": "Schedule Trigger2",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\n\nif (!staticData.posted) {\n  staticData.posted = {};\n}\n\nconst link = $json.link;\n\nif (staticData.posted[link]) {\n  return [];\n}\n\nstaticData.posted[link] = true;\n\nreturn $input.all();"
+      },
+      "id": "5ed1168d-c62a-44ce-a3f3-55b687ee3756",
+      "name": "Duplicate Check1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Finance & Market News",
+        "height": 544,
+        "width": 1360,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        144,
+        -416
+      ],
+      "typeVersion": 1,
+      "id": "6d7894e7-bca0-4d78-be56-412354708adf",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "url": "https://api.marketaux.com/v1/news/all?symbols=BTC,ETH,GOLD,OIL&language=en&filter_entities=true&api_token=hJi8GiWPrKpO2hkRWpNcaa91G40q5uImICJ2kb5d",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b7560f49-f5ad-42f3-ab51-4b635dd4ec40",
+      "name": "MarketAux API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        528,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const news = $json.data;\n\nif (!news || news.length === 0) {\n  return [];\n}\n\nconst article = news[0];\n\nconst title = article.title;\nconst link = article.url;\nconst image = article.image_url;\n\nconst message = `📰 <b>Market News</b>\n\n${title}\n\n⏱ Just now\n\n#Crypto #Gold #Oil #Inflation #Markets\n\n<b>Follow</b> 👉 <b>@financealerts0</b>`;\n\nreturn [\n  {\n    json: {\n      title,\n      link,\n      image,\n      message\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        -320
+      ],
+      "id": "39c4856d-c403-4a48-8f2f-a6e1be0ad226",
+      "name": "News Format"
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "@financealerts0",
+        "file": "={{ $json.image }}",
+        "additionalFields": {
+          "caption": "={{ $json.message }}",
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1168,
+        -320
+      ],
+      "id": "4abd0b81-0318-4787-949a-42c495738ce6",
+      "name": "Photo Post1",
+      "webhookId": "357f7e92-16a5-4fcb-8b41-8fc53e3e8bf8",
+      "credentials": {
+        "telegramApi": {
+          "id": "6ZcfdZzVhnr3kEHP",
+          "name": "Telegram Bot (Mr Nobody)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\n\nif (!staticData.posted) {\n  staticData.posted = {};\n}\n\nconst link = $json.link;\n\nif (staticData.posted[link]) {\n  return [];\n}\n\nstaticData.posted[link] = true;\n\nreturn $input.all();"
+      },
+      "id": "48d9158b-f956-4e24-816e-d06457f784c8",
+      "name": "Duplicate Check2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        944,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const news = $json.articles;\n\nif (!news || news.length === 0) {\n  return [];\n}\n\nconst article = news[0];\n\nconst title = article.title;\nconst link = article.url;\nconst image = article.image;\n\nconst message = `📰 <b>Market News</b>\n\n${title}\n\n⏱ Just now\n\n#Crypto #Gold #Oil #Inflation #Markets\n\n<b>Follow</b> 👉 <b>@financealerts0</b>`;\n\nreturn [\n  {\n    json: {\n      title,\n      link,\n      image,\n      message\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        -96
+      ],
+      "id": "f7da5c65-cf76-4e4d-8291-b9aab8894c17",
+      "name": "News Format1"
+    },
+    {
+      "parameters": {
+        "url": "https://gnews.io/api/v4/search?q=crypto OR gold OR oil OR inflation&lang=en&apikey=aa8a518677723d592367fda848101337",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "3cdff07c-7677-4b60-80f0-5d4f2d218640",
+      "name": "GNews API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        528,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "triggerAtMinute": 35
+            }
+          ]
+        }
+      },
+      "id": "8383c653-0d71-48b0-bb3d-fbd047afee83",
+      "name": "Schedule Trigger3",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "@financealerts0",
+        "file": "={{ $json.image }}",
+        "additionalFields": {
+          "caption": "={{ $json.message }}",
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1168,
+        -96
+      ],
+      "id": "6009ab4b-01cd-414f-9865-442906c74f74",
+      "name": "Photo Post2",
+      "webhookId": "357f7e92-16a5-4fcb-8b41-8fc53e3e8bf8",
+      "credentials": {
+        "telegramApi": {
+          "id": "6ZcfdZzVhnr3kEHP",
+          "name": "Telegram Bot (Mr Nobody)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger2": {
+      "main": [
+        [
+          {
+            "node": "MarketAux API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Check1": {
+      "main": [
+        [
+          {
+            "node": "Photo Post1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MarketAux API": {
+      "main": [
+        [
+          {
+            "node": "News Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "News Format": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Check1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Check2": {
+      "main": [
+        [
+          {
+            "node": "Photo Post2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "News Format1": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Check2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GNews API": {
+      "main": [
+        [
+          {
+            "node": "News Format1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger3": {
+      "main": [
+        [
+          {
+            "node": "GNews API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9cd43dcb55a8601943aaff717ee12820b5d08e8bfaaaf24abd5ade9105ed54c6"
+  }
+}
