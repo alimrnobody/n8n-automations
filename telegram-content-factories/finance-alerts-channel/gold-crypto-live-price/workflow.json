@@ -1,1 +1,225 @@
-
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1040,
+        -192
+      ],
+      "id": "b31be0ff-4aca-4ac9-8cce-fa5c76589d37",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "price",
+              "cssSelector": "[data-test=\"instrument-price-last\"]"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -592,
+        -320
+      ],
+      "id": "dfe6b2be-8b4e-4777-b6bb-d6d8a61d28bf",
+      "name": "Extract Gold Spot"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -592,
+        -80
+      ],
+      "id": "1cc13344-6882-4f1c-9d83-95646ac05313",
+      "name": "Merge All Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all input data\nconst inputs = $input.all();\n\n/* =========================\n   🔧 UPDATE INTERVAL (CHANGE ONLY THIS VALUE)\n========================= */\n\nconst updateMinutes = 60; // ← YAHAN 60 likha hai (1 hour)\n\n// Convert interval to readable format\nlet updateText = '';\n\nif (updateMinutes < 60) {\n  updateText = `${updateMinutes} min`;\n} else {\n  const hours = updateMinutes / 60;\n  updateText = hours === 1 ? '1 hour' : `${hours} hours`;\n}\n\n/* =========================\n   CRYPTO (CoinGecko)\n========================= */\n\nconst cryptoInput = inputs.find(i => i.json?.bitcoin);\nconst cryptoData = cryptoInput?.json || {};\n\nfunction formatCrypto(coin) {\n  if (!coin || typeof coin.usd !== 'number') {\n    return { price: 'N/A', emoji: '' };\n  }\n  return {\n    price: `$${Number(coin.usd).toLocaleString()}`,\n    emoji: coin.usd_24h_change > 0 ? '🟢' : '🔴'\n  };\n}\n\nconst btc = formatCrypto(cryptoData.bitcoin);\nconst eth = formatCrypto(cryptoData.ethereum);\nconst bnb = formatCrypto(cryptoData.binancecoin);\nconst sol = formatCrypto(cryptoData.solana);\n\n/* =========================\n   GOLD\n========================= */\n\nconst goldInput = inputs.find(\n  i => typeof i.json?.price === 'string' && i.json.price.trim() !== ''\n);\n\nconst goldPrice = goldInput ? `$${goldInput.json.price}` : 'N/A';\n\n/* =========================\n   MESSAGE TEMPLATE\n========================= */\n\nconst message = `⚡ <b>LIVE MARKET UPDATE 📊</b>\n\n🟡 <b>Gold Live Price</b> 💰\n▸ Gold → <code>${goldPrice}</code>\n\n🟠 <b>Crypto Live Prices</b> ₿\n▸ BTC → <code>${btc.price}</code> ${btc.emoji}\n▸ ETH → <code>${eth.price}</code> ${eth.emoji}\n▸ BNB → <code>${bnb.price}</code> ${bnb.emoji}\n▸ SOL → <code>${sol.price}</code> ${sol.emoji}\n\n⏰ <b>Next update in ${updateText}</b> ⏳\n\n#GoldPrice #LivePrice #CryptoPrices\n\n<b>Follow</b> 👉 <b>@financealerts0</b>`;\n\nreturn [\n  {\n    json: { message }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -80
+      ],
+      "id": "92c60aec-1801-47e1-b599-5a966e371491",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "https://www.investing.com/commodities/gold",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -800,
+        -320
+      ],
+      "id": "aeddf0c3-d90d-4b37-a27a-e023016e4200",
+      "name": "Get Gold Price"
+    },
+    {
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,binancecoin&vs_currencies=usd&include_24hr_change=true",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -800,
+        -64
+      ],
+      "id": "1b964fa3-6f76-45be-8ed1-2d6f0901bbf3",
+      "name": "Get Crypto Price"
+    },
+    {
+      "parameters": {
+        "content": "## Gold & Crypto Live Price Update",
+        "height": 544,
+        "width": 1136,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1104,
+        -416
+      ],
+      "typeVersion": 1,
+      "id": "d4a9695c-4df1-4f2b-b4cc-feaacb953011",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "chatId": "@financealerts0",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -192,
+        -80
+      ],
+      "id": "2e3cf16c-7d29-4d5f-9820-c0f405f7a15f",
+      "name": "Send a text message",
+      "webhookId": "e8a485ec-3061-4eae-89fa-24a93524fb8f",
+      "credentials": {
+        "telegramApi": {
+          "id": "6ZcfdZzVhnr3kEHP",
+          "name": "Telegram Bot (Mr Nobody)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Gold Price",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Crypto Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Gold Spot": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Data": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Gold Price": {
+      "main": [
+        [
+          {
+            "node": "Extract Gold Spot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Crypto Price": {
+      "main": [
+        [
+          {
+            "node": "Merge All Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9cd43dcb55a8601943aaff717ee12820b5d08e8bfaaaf24abd5ade9105ed54c6"
+  }
+}
