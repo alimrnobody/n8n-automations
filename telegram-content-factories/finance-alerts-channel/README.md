@@ -11,3 +11,6 @@ The automation posts:
   - SOL
   - BNB
   - Gold
+
+Fully automated Telegram finance alert system built with n8n.
+The system fetches financial news and live asset prices and publishes updates automatically.
